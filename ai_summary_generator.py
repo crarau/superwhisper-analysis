@@ -201,16 +201,19 @@ OVERALL CONTEXT:
 - Peak day was: {peak_day} ({peak_minutes} minutes)
 - Most active time: {busiest_day}s at {busiest_hour}:00
 
-Create a summary that:
+Create a summary that emphasizes these key advantages of voice input:
 1. Starts with "In the last 30 days..." to focus on recent habits
-2. Uses simple, relatable language (avoid tech jargon)
-3. Compares to everyday activities people understand
-4. Emphasizes the convenience and time savings
-5. Shows daily habits that anyone can relate to
-6. Uses conversational tone, like telling a friend
-7. Ends with encouragement for others to try voice-to-text
+2. **Natural flow & multitasking**: Talk while looking at the screen, eyes free to see what's happening
+3. **Hands-free freedom**: Move mouse around, navigate, gesture while talking - not stuck at keyboard
+4. **Especially powerful with AI**: Direct AI to write code/content while watching it happen in real-time
+5. **Intuitive expression**: More natural than being constrained to typing in one spot
+6. **No workflow interruption**: Keep momentum going instead of stopping to type
+7. Uses simple, relatable language and everyday comparisons
+8. Shows daily habits that anyone can relate to
+9. Uses conversational tone, like telling a friend
+10. Ends with encouragement for others to try voice-to-text
 
-Make it feel personal and inspiring, not technical. Focus on the human impact!
+Focus on how voice input transforms the entire interaction experience - it's not just faster typing, it's a completely different, more natural way to work with computers. Highlight the freedom and flow it enables!
 """
 
 def generate_ai_summary(data, client, provider, focus="comprehensive"):
