@@ -135,6 +135,18 @@ def detect_superwhisper_path():
     
     return None
 
+# ==============================================================================
+# AI API KEYS (for AI summary generation)
+# ==============================================================================
+
+# Anthropic Claude API key - Set via environment variable for security
+# export ANTHROPIC_API_KEY="your_api_key_here"
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', None)
+
+# OpenAI API key (optional - fallback) - Set via environment variable
+# export OPENAI_API_KEY="your_api_key_here"  
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
+
 if __name__ == "__main__":
     print("SuperWhisper Analysis Configuration")
     print("=" * 50)

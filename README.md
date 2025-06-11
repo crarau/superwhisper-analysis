@@ -23,6 +23,42 @@ A comprehensive Python toolkit for analyzing SuperWhisper voice recording data, 
 - Your most productive days and content insights
 - AI-generated shareable summaries perfect for social media and presentations
 
+## 🗣️ Example: Recent Activity Insights
+
+Here's a sample of the user-friendly insights you'll get about your voice recording habits:
+
+> **In the last 30 days**, I've been talking instead of typing - and it's completely changed my daily routine! Imagine having a casual 40-minute conversation every day; that's about how much I speak to my device. I average about 4,200 words daily, which is roughly the length of a lengthy blog post or a short story.
+>
+> Here's what amazes me: **I'm saving nearly 20 hours per month** just by speaking instead of typing. That's like getting back an entire weekend! I find myself reaching for voice input about 69 times throughout the day - pretty much whenever I need to write anything longer than a quick text.
+>
+> The coolest part? I'm speaking at a comfortable pace (about 113 words per minute), which is nearly twice as fast as if I were typing. It's like the difference between walking and riding a bike - same destination, but you get there so much quicker! I tend to be most chatty on Wednesday afternoons, usually around 1 PM when my creative energy is flowing.
+>
+> If you're curious about trying voice-to-text, I'd absolutely recommend it. It's as simple as talking to a friend, and you might be surprised how natural it feels after just a few days. Think about all the things you could do with an extra 20 hours a month - that's a lot of Netflix shows, walks in the park, or quality time with family!
+
+*This is the kind of personal, relatable summary the AI generator creates from your own SuperWhisper data - perfect for sharing with friends or inspiring others to try voice-to-text technology!*
+
+### 📊 Underlying Data Structure
+
+Here's the actual data that gets sent to the AI to generate the above summary:
+
+```
+RECENT ACTIVITY DATA (Last 30 Days):
+- Daily talking habit: 4,200 words per day on average
+- Time spent talking: 40.0 minutes per day
+- Time saved vs typing: 1,200 minutes total (40.0 min/day)
+- How often I use voice: 68.8 times per day
+- Recent productivity: Generated 126,092 words in 30 days
+
+OVERALL CONTEXT:
+- Total experience: February 09, 2025 to June 11, 2025
+- Speaking speed: 112.6 words per minute
+- vs Professional typing: 1.9x faster
+- Peak day was: March 03, 2025 (89.5 minutes)
+- Most active time: Wednesdays at 1:00
+```
+
+*The AI transforms these raw metrics into engaging, relatable stories that anyone can understand and share.*
+
 ## 🛠️ Installation
 
 1. **Clone the repository**:

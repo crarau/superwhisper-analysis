@@ -4,148 +4,222 @@ AI-Powered SuperWhisper Summary Generator
 Creates beautiful, shareable insights from your analytics using AI
 """
 
-import json
+import pandas as pd
 import os
 import pickle
 from datetime import datetime, timedelta
-import pandas as pd
-from pathlib import Path
 import config
 
-def load_analysis_data():
-    """Load all analysis data from cache and CSV files"""
-    print("📊 Loading analysis data...")
-    
-    # Load raw recordings data
+def load_config():
+    """Load configuration, handling missing attributes gracefully"""
     try:
-        with open(config.RECORDINGS_CACHE_FILE, 'rb') as f:
-            recordings = pickle.load(f)
-        print(f"✅ Loaded {len(recordings)} recordings from cache")
-    except FileNotFoundError:
-        print("❌ No cache found. Please run superwhisper_analysis_fast.py first.")
+        # Check if config has required attributes
+        if not hasattr(config, 'ANTHROPIC_API_KEY'):
+            config.ANTHROPIC_API_KEY = None
+        if not hasattr(config, 'OPENAI_API_KEY'):
+            config.OPENAI_API_KEY = None
+            
+        print("✅ Configuration loaded successfully")
+        return config
+        
+    except Exception as e:
+        print(f"❌ Error loading configuration: {e}")
+        print("💡 Please ensure config.py exists and is properly configured")
         return None
-    
-    # Create dataframe
-    df = pd.DataFrame(recordings)
-    df['datetime'] = pd.to_datetime(df['datetime'])
-    df['date'] = df['datetime'].dt.date
-    
-    # Calculate key metrics
-    total_recordings = len(df)
-    total_hours = df['duration_minutes'].sum() / 60
-    total_words = df['result_length'].sum() / 5  # Rough estimate
-    total_chars = df['result_length'].sum()
-    
-    # Speaking speed
-    speaking_wpm = total_words / (total_hours * 60) if total_hours > 0 else 0
-    
-    # Time savings calculations
-    total_speaking_minutes = df['duration_minutes'].sum()
-    typing_time_casual_minutes = total_words / config.TYPING_SPEEDS['casual']  # minutes
-    typing_time_professional_minutes = total_words / config.TYPING_SPEEDS['professional']  # minutes
-    typing_time_fast_minutes = total_words / config.TYPING_SPEEDS['fast']  # minutes
-    
-    time_saved_casual = (typing_time_casual_minutes - total_speaking_minutes) / 60  # hours
-    time_saved_professional = (typing_time_professional_minutes - total_speaking_minutes) / 60  # hours
-    time_saved_fast = (typing_time_fast_minutes - total_speaking_minutes) / 60  # hours
-    
-    # Daily stats
-    daily_stats = df.groupby('date').agg({
-        'duration_minutes': 'sum',
-        'folder': 'count'
-    }).rename(columns={'folder': 'num_recordings'})
-    
-    # Find peak day
-    peak_day = daily_stats['duration_minutes'].idxmax()
-    peak_minutes = daily_stats['duration_minutes'].max()
-    peak_recordings = daily_stats.loc[peak_day, 'num_recordings']
-    
-    # Recent activity (last 30 days)
-    recent_cutoff = df['datetime'].max() - timedelta(days=30)
-    recent_df = df[df['datetime'] >= recent_cutoff]
-    recent_words = recent_df['result_length'].sum() / 5
-    recent_typing_time = recent_words / config.TYPING_SPEEDS['professional']  # minutes
-    recent_time_saved = (recent_typing_time - recent_df['duration_minutes'].sum()) / 60  # hours
-    
-    # Compile summary data
-    summary_data = {
-        'total_recordings': total_recordings,
-        'total_hours': round(total_hours, 1),
-        'total_words': int(total_words),
-        'total_characters': total_chars,
-        'speaking_wpm': round(speaking_wpm, 1),
-        'analysis_period': f"{df['datetime'].min().strftime('%B %Y')} to {df['datetime'].max().strftime('%B %Y')}",
-        'active_days': len(daily_stats),
-        'avg_daily_recordings': round(total_recordings / len(daily_stats), 1),
-        'avg_daily_minutes': round(df['duration_minutes'].sum() / len(daily_stats), 1),
-        'peak_day': peak_day.strftime('%B %d, %Y'),
-        'peak_minutes': round(peak_minutes, 1),
-        'peak_recordings': int(peak_recordings),
-        'time_saved_casual_hours': round(time_saved_casual, 1),
-        'time_saved_professional_hours': round(time_saved_professional, 1),
-        'time_saved_fast_hours': round(time_saved_fast, 1),
-        'efficiency_vs_casual': round((time_saved_casual / (typing_time_casual_minutes/60)) * 100, 1),
-        'efficiency_vs_professional': round((time_saved_professional / (typing_time_professional_minutes/60)) * 100, 1),
-        'recent_words': int(recent_words),
-        'recent_time_saved_hours': round(recent_time_saved, 1),
-        'speed_multiplier_casual': round(speaking_wpm / config.TYPING_SPEEDS['casual'], 1),
-        'speed_multiplier_professional': round(speaking_wpm / config.TYPING_SPEEDS['professional'], 1),
-        'busiest_hour': df.groupby(df['datetime'].dt.hour)['duration_minutes'].sum().idxmax(),
-        'busiest_day': df.groupby(df['datetime'].dt.day_name())['duration_minutes'].sum().idxmax()
-    }
-    
-    return summary_data
 
-def setup_ai_client():
-    """Setup AI client (OpenAI or Anthropic) based on user preference"""
-    print("\n🤖 AI Summary Generator Setup")
-    print("=" * 50)
-    print("Choose your AI provider:")
-    print("1. OpenAI (GPT-4)")
-    print("2. Anthropic (Claude)")
-    print("3. Skip AI generation")
-    
-    choice = input("Enter your choice (1-3): ").strip()
-    
-    if choice == "3":
+def load_analytics_data():
+    """Load analytics data from CSV files"""
+    try:
+        # Load the detailed text analysis results
+        text_analysis_file = "data/recordings_text_analysis.csv"
+        if not os.path.exists(text_analysis_file):
+            print(f"❌ Analytics file not found: {text_analysis_file}")
+            print("💡 Run 'python superwhisper_text_analysis.py' first to generate analytics data")
+            return None
+        
+        # Read the detailed recording data
+        df = pd.read_csv(text_analysis_file)
+        if df.empty:
+            print("❌ Analytics file is empty")
+            return None
+        
+        print(f"✅ Loaded {len(df)} recordings for analysis")
+        
+        # Calculate aggregate statistics
+        total_recordings = len(df)
+        total_minutes = df['duration_minutes'].sum()
+        total_characters = df['result_length'].sum()
+        total_words = df['estimated_words'].sum()
+        total_time_saved_professional = df['time_saved_vs_professional_min'].sum()
+        total_time_saved_casual = df['time_saved_vs_casual_min'].sum()
+        
+        # Speaking speed
+        speaking_wpm = total_words / total_minutes if total_minutes > 0 else 0
+        
+        # Date range
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        first_date = df['datetime'].min().strftime('%B %d, %Y')
+        last_date = df['datetime'].max().strftime('%B %d, %Y')
+        
+        # Active days
+        unique_dates = df['datetime'].dt.date.nunique()
+        
+        # Daily averages
+        avg_daily_recordings = total_recordings / unique_dates if unique_dates > 0 else 0
+        avg_daily_minutes = total_minutes / unique_dates if unique_dates > 0 else 0
+        
+        # Peak day analysis
+        daily_stats = df.groupby(df['datetime'].dt.date).agg({
+            'duration_minutes': 'sum',
+            'result_length': 'count'  # count recordings per day
+        }).rename(columns={'result_length': 'recordings_count'})
+        
+        peak_day_date = daily_stats['duration_minutes'].idxmax()
+        peak_minutes = daily_stats['duration_minutes'].max()
+        peak_recordings = daily_stats.loc[peak_day_date, 'recordings_count']
+        peak_day = peak_day_date.strftime('%B %d, %Y')
+        
+        # Usage patterns
+        busiest_hour = df.groupby(df['datetime'].dt.hour)['duration_minutes'].sum().idxmax()
+        busiest_day = df.groupby(df['datetime'].dt.day_name())['duration_minutes'].sum().idxmax()
+        
+        # Recent activity (last 30 days)
+        cutoff_date = df['datetime'].max() - timedelta(days=30)
+        recent_df = df[df['datetime'] >= cutoff_date]
+        recent_words = recent_df['estimated_words'].sum()
+        recent_time_saved_hours = recent_df['time_saved_vs_professional_min'].sum() / 60
+        
+        # Efficiency calculations
+        total_speaking_hours = total_minutes / 60
+        total_typing_time_professional = total_words / 60  # minutes at 60 WPM
+        speed_multiplier_professional = speaking_wpm / 60 if speaking_wpm > 0 else 0
+        efficiency_vs_professional = (total_time_saved_professional / (total_typing_time_professional + total_minutes)) * 100 if (total_typing_time_professional + total_minutes) > 0 else 0
+        
+        return {
+            'total_recordings': total_recordings,
+            'active_days': unique_dates,
+            'total_hours': f"{total_minutes / 60:.1f}",
+            'total_words': int(total_words),
+            'total_characters': int(total_characters),
+            'speaking_wpm': f"{speaking_wpm:.1f}",
+            'analysis_period': f"{first_date} to {last_date}",
+            'avg_daily_recordings': f"{avg_daily_recordings:.1f}",
+            'avg_daily_minutes': f"{avg_daily_minutes:.1f}",
+            'peak_day': peak_day,
+            'peak_minutes': f"{peak_minutes:.1f}",
+            'peak_recordings': int(peak_recordings),
+            'time_saved_casual_hours': f"{total_time_saved_casual / 60:.1f}",
+            'time_saved_professional_hours': f"{total_time_saved_professional / 60:.1f}",
+            'speed_multiplier_professional': f"{speed_multiplier_professional:.1f}",
+            'efficiency_vs_professional': f"{efficiency_vs_professional:.1f}",
+            'busiest_hour': int(busiest_hour),
+            'busiest_day': busiest_day,
+            'recent_words': int(recent_words),
+            'recent_time_saved_hours': recent_time_saved_hours
+        }
+        
+    except Exception as e:
+        print(f"❌ Error loading analytics data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def setup_ai_client(config):
+    """Setup AI client based on configuration"""
+    try:
+        # Try Anthropic first if API key is available
+        if hasattr(config, 'ANTHROPIC_API_KEY') and config.ANTHROPIC_API_KEY:
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+                print("✅ Using Anthropic Claude for AI generation")
+                return client, "anthropic"
+            except ImportError:
+                print("⚠️ Anthropic library not installed. Install with: pip install anthropic")
+            except Exception as e:
+                print(f"⚠️ Anthropic setup failed: {e}")
+        
+        # Try OpenAI as fallback
+        if hasattr(config, 'OPENAI_API_KEY') and config.OPENAI_API_KEY:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+                print("✅ Using OpenAI GPT-4 for AI generation")
+                return client, "openai"
+            except ImportError:
+                print("⚠️ OpenAI library not installed. Install with: pip install openai")
+            except Exception as e:
+                print(f"⚠️ OpenAI setup failed: {e}")
+        
+        print("❌ No AI provider available. Please configure API keys in config.py")
         return None, None
-    
-    if choice == "1":
-        try:
-            import openai
-            api_key = input("Enter your OpenAI API key: ").strip()
-            if not api_key:
-                print("❌ No API key provided")
-                return None, None
-            
-            client = openai.OpenAI(api_key=api_key)
-            return client, "openai"
-        except ImportError:
-            print("❌ OpenAI package not installed. Run: pip install openai")
-            return None, None
-    
-    elif choice == "2":
-        try:
-            import anthropic
-            api_key = input("Enter your Anthropic API key: ").strip()
-            if not api_key:
-                print("❌ No API key provided")
-                return None, None
-            
-            client = anthropic.Anthropic(api_key=api_key)
-            return client, "anthropic"
-        except ImportError:
-            print("❌ Anthropic package not installed. Run: pip install anthropic")
-            return None, None
-    
-    else:
-        print("❌ Invalid choice")
+        
+    except Exception as e:
+        print(f"❌ Error setting up AI client: {e}")
         return None, None
 
-def generate_ai_summary(data, client, provider):
+def generate_recent_activity_prompt(data):
+    """Generate a user-friendly prompt focused on recent habits"""
+    # Handle mixed data types safely
+    recent_words = data.get('recent_words', 0)
+    recent_time_saved_hours = data.get('recent_time_saved_hours', 0)
+    avg_daily_recordings = data.get('avg_daily_recordings', '0')
+    speaking_wpm = data.get('speaking_wpm', '0')
+    speed_multiplier_professional = data.get('speed_multiplier_professional', '0')
+    peak_day = data.get('peak_day', 'N/A')
+    peak_minutes = data.get('peak_minutes', '0')
+    busiest_day = data.get('busiest_day', 'N/A')
+    busiest_hour = data.get('busiest_hour', '0')
+    analysis_period = data.get('analysis_period', 'N/A')
+    
+    # Calculate daily averages safely
+    try:
+        daily_words = int(recent_words) / 30 if recent_words else 0
+        daily_talk_minutes = float(recent_time_saved_hours) * 60 / 30 if recent_time_saved_hours else 0
+        total_saved_minutes = float(recent_time_saved_hours) * 60 if recent_time_saved_hours else 0
+        daily_saved_minutes = total_saved_minutes / 30 if total_saved_minutes else 0
+    except (ValueError, TypeError):
+        daily_words = 0
+        daily_talk_minutes = 0
+        total_saved_minutes = 0
+        daily_saved_minutes = 0
+    
+    return f"""
+Create a compelling, easy-to-understand summary focused on recent voice recording habits. This should be relatable for anyone, not just tech people.
+
+RECENT ACTIVITY DATA (Last 30 Days):
+- Daily talking habit: {daily_words:.0f} words per day on average
+- Time spent talking: {daily_talk_minutes:.1f} minutes per day
+- Time saved vs typing: {total_saved_minutes:.0f} minutes total ({daily_saved_minutes:.1f} min/day)
+- How often I use voice: {avg_daily_recordings} times per day
+- Recent productivity: Generated {recent_words:,} words in 30 days
+
+OVERALL CONTEXT:
+- Total experience: {analysis_period}
+- Speaking speed: {speaking_wpm} words per minute
+- vs Professional typing: {speed_multiplier_professional}x faster
+- Peak day was: {peak_day} ({peak_minutes} minutes)
+- Most active time: {busiest_day}s at {busiest_hour}:00
+
+Create a summary that:
+1. Starts with "In the last 30 days..." to focus on recent habits
+2. Uses simple, relatable language (avoid tech jargon)
+3. Compares to everyday activities people understand
+4. Emphasizes the convenience and time savings
+5. Shows daily habits that anyone can relate to
+6. Uses conversational tone, like telling a friend
+7. Ends with encouragement for others to try voice-to-text
+
+Make it feel personal and inspiring, not technical. Focus on the human impact!
+"""
+
+def generate_ai_summary(data, client, provider, focus="comprehensive"):
     """Generate AI-powered summary of the analytics"""
     
-    prompt = f"""
+    if focus == "recent":
+        prompt = generate_recent_activity_prompt(data)
+    else:
+        prompt = f"""
 Create a compelling, shareable summary of this SuperWhisper voice recording analysis. The data shows impressive productivity gains from using voice-to-text technology.
 
 ANALYTICS DATA:
@@ -205,91 +279,75 @@ Format as markdown with clear sections. Make it engaging and shareable!
         print(f"❌ Error generating AI summary: {e}")
         return None
 
-def create_fallback_summary(data):
-    """Create a fallback summary without AI"""
-    return f"""# 🎙️ SuperWhisper Analytics Summary
-
-## 📊 Productivity Overview
-
-I analyzed **{data['analysis_period']}** of voice recording data and discovered some incredible productivity gains!
-
-### 🚀 Key Numbers
-- **{data['total_recordings']:,} recordings** across {data['active_days']} active days
-- **{data['total_hours']} hours** of total speaking time  
-- **{data['total_words']:,} words** generated (equivalent to ~{data['total_words']//250} pages!)
-- **{data['speaking_wpm']} WPM** average speaking speed
-
-### ⚡ Time Savings
-By speaking instead of typing, I saved:
-- **{data['time_saved_professional_hours']} hours** vs professional typing (60 WPM)
-- **{data['time_saved_casual_hours']} hours** vs casual typing (35 WPM)
-- That's **{data['speed_multiplier_professional']}x faster** than professional typing!
-
-### 📈 Daily Impact
-- **{data['avg_daily_recordings']} recordings** per day on average
-- **{data['avg_daily_minutes']} minutes** of daily speaking
-- **{data['efficiency_vs_professional']}% efficiency gain** vs typing
-- Peak day: **{data['peak_day']}** ({data['peak_minutes']} minutes!)
-
-### 🎯 Recent Performance (Last 30 Days)
-- **{data['recent_words']:,} words** generated through voice
-- **{data['recent_time_saved_hours']} hours** saved vs typing
-- Most active on **{data['busiest_day']}s** at **{data['busiest_hour']}:00**
-
-## 💡 Bottom Line
-
-Voice-to-text isn't just convenient—it's a **{data['speed_multiplier_professional']}x productivity multiplier** that saves me **{data['time_saved_professional_hours']} hours** compared to traditional typing.
-
-*Generated from SuperWhisper analytics on {datetime.now().strftime('%B %d, %Y')}*
-"""
-
-def save_summary(summary, filename="superwhisper_summary.md"):
-    """Save the summary to a markdown file"""
-    config.ensure_data_dir()
-    filepath = f"data/{filename}"
-    
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(summary)
-    
-    print(f"✅ Summary saved to: {filepath}")
-    return filepath
-
 def main():
-    """Main summary generation function"""
     print("🎙️ SuperWhisper AI Summary Generator")
-    print("=" * 50)
+    print("=====================================")
     
-    # Load data
-    data = load_analysis_data()
-    if not data:
+    # Load configuration
+    config = load_config()
+    if not config:
         return
     
     # Setup AI client
-    client, provider = setup_ai_client()
+    client, provider = setup_ai_client(config)
+    if not client:
+        return
     
-    # Generate summary
-    if client and provider:
-        summary = generate_ai_summary(data, client, provider)
-        if summary:
-            print("✅ AI summary generated successfully!")
-        else:
-            print("⚠️ AI generation failed, using fallback...")
-            summary = create_fallback_summary(data)
+    # Load analytics data
+    print("\n📊 Loading analytics data...")
+    data = load_analytics_data()
+    if not data:
+        return
+    
+    # Menu for summary type
+    print("\n🤖 Choose summary type:")
+    print("1. 📈 Comprehensive Analysis (Great for sharing)")
+    print("2. 🗣️  Recent Activity (Last 30 days - User-friendly)")
+    print("3. 📋 Both Summaries")
+    
+    choice = input("\nEnter your choice (1-3): ").strip()
+    
+    summaries_to_generate = []
+    if choice == "1":
+        summaries_to_generate = [("comprehensive", "📈 Comprehensive Analysis")]
+    elif choice == "2":
+        summaries_to_generate = [("recent", "🗣️ Recent Activity Summary")]
+    elif choice == "3":
+        summaries_to_generate = [
+            ("comprehensive", "📈 Comprehensive Analysis"),
+            ("recent", "🗣️ Recent Activity Summary")
+        ]
     else:
-        print("📝 Using fallback summary (no AI)...")
-        summary = create_fallback_summary(data)
+        print("❌ Invalid choice. Defaulting to comprehensive analysis.")
+        summaries_to_generate = [("comprehensive", "📈 Comprehensive Analysis")]
     
-    # Save summary
-    filepath = save_summary(summary)
+    # Generate summaries
+    for focus, title in summaries_to_generate:
+        print(f"\n{title}")
+        print("=" * 50)
+        
+        summary = generate_ai_summary(data, client, provider, focus)
+        if summary:
+            print(f"✅ Generated {title.lower()}!")
+            print("\n" + "="*60)
+            print(summary)
+            print("="*60)
+            
+            # Save to file
+            filename = f"ai_summary_{focus}.md"
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(f"# {title}\n\n")
+                    f.write(f"*Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}*\n\n")
+                    f.write(summary)
+                print(f"📝 Summary saved to: {filename}")
+            except Exception as e:
+                print(f"❌ Error saving summary: {e}")
+        else:
+            print(f"❌ Failed to generate {title.lower()}")
     
-    # Show preview
-    print(f"\n📋 SUMMARY PREVIEW:")
-    print("=" * 50)
-    print(summary[:500] + "..." if len(summary) > 500 else summary)
-    print("=" * 50)
-    
-    print(f"\n🎉 Complete! Your shareable summary is ready at: {filepath}")
-    print("Perfect for LinkedIn posts, blog articles, or presentations!")
+    print(f"\n✨ Summary generation complete using {provider.upper()}!")
+    print("💡 Tip: Share these summaries to inspire others to try voice-to-text!")
 
 if __name__ == "__main__":
     main() 
