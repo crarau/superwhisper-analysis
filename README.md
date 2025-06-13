@@ -65,7 +65,7 @@ OVERALL CONTEXT:
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/~/superwhisper-analysis.git
+git clone https://github.com/crarau/superwhisper-analysis.git
 cd superwhisper-analysis
 ```
 
