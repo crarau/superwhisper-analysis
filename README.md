@@ -74,6 +74,13 @@ cd superwhisper-analysis
 pip install -r requirements.txt
 ```
 
+**Optional: Use virtual environment** (recommended for clean dependency management):
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
 3. **Optional: Install AI dependencies** (for summary generation):
 ```bash
 # For OpenAI GPT-4 summaries
